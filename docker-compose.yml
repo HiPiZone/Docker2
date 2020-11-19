@@ -1,3 +1,8 @@
+##################
+
+Kafka plus zookeeper plus akhq plus cp-kafka-connect plus cp-schema-registry
+
+##################
 version: '3.7'
 
 services:
