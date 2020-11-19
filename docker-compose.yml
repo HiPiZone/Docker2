@@ -1,0 +1,94 @@
+version: '3.7'
+
+services:
+
+  zookeeper:
+      container_name: centos_zookeeper
+      image: wurstmeister/zookeeper
+      ports:
+        - "2181:2181"
+      networks:
+        - kafkanetwork
+
+  kafka:
+      container_name: centos_kafka
+      image: wurstmeister/kafka:1.1.0
+      ports:
+        - "9092:9092"
+      hostname: kafka
+      networks:
+        - kafkanetwork
+      environment:
+        KAFKA_LISTENERS: PLAINTEXT://:9092,SSL://:9093
+        KAFKA_ZOOKEEPER_CONNECT: centos_zookeeper:2181
+        #KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092
+        #KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      depends_on:
+        - zookeeper
+
+  akhq:
+    image: tchiotludo/akhq
+    environment:
+      JVM_OPTS_FILE: /app/jvm.options
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: kafka:9092
+              schema-registry:
+                - url: "http://schema-registry:8085"
+              connect:
+                - url: "http://connect:8083"
+    hostname: akhq
+    networks:
+        - kafkanetwork
+      
+
+    ports:
+      - "8080:8080"
+    links:
+      - kafka
+      - schema-registry
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry
+    depends_on:
+      - kafka
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8085"
+      SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL: INFO
+
+  connect:
+    image: confluentinc/cp-kafka-connect
+    depends_on:
+      - kafka
+      - schema-registry
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+      CONNECT_REST_PORT: 8083
+      CONNECT_REST_LISTENERS: http://0.0.0.0:8083
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_CONFIG_STORAGE_TOPIC: __connect-config
+      CONNECT_OFFSET_STORAGE_TOPIC: __connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: __connect-status
+      CONNECT_GROUP_ID: "kafka-connect"
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8085
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8085
+      CONNECT_INTERNAL_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_INTERNAL_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_PLUGIN_PATH: ' /usr/share/java/'
+    
+
+networks:
+  kafkanetwork:
+    driver: bridge
