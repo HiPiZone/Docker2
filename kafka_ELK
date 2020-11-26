@@ -112,8 +112,8 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.10.0
     container_name: es01
 
-    depends_on:
-      - create_certs
+   # depends_on:
+    #  - create_certs
 
     environment:
       - discovery.type=single-node
@@ -152,6 +152,9 @@ services:
       - certs:/usr/share/elasticsearch/config/certificates
     networks:
       - elastic
+
+
+
 volumes:
   data01:
     driver: local
